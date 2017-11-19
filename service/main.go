@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"reflect"
 	"github.com/pborman/uuid"
+	"strings"
+	"context"
+	"cloud.google.com/go/bigtable"
 )
 
 const (
@@ -16,10 +19,10 @@ const (
 	TYPE = "post"
 	DISTANCE = "200km"
 	// Needs to update
-	//PROJECT_ID = "around-xxx"
-	//BT_INSTANCE = "around-post"
+	PROJECT_ID = "unique-hash-185822"
+	BT_INSTANCE = "around-post"
 	// Needs to update this URL if you deploy it to cloud.
-	ES_URL = "http://35.196.21.141:9200"
+	ES_URL = "http://35.190.177.186:9200"
 )
 
 
@@ -128,8 +131,9 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 		p := item.(Post) // p = (Post) item
 		fmt.Printf("Post by %s: %s at lat %v and lon %v\n", p.User, p.Message, p.Location.Lat, p.Location.Lon)
 		// TODO(student homework): Perform filtering based on keywords such as web spam etc.
-		ps = append(ps, p)
-
+		if !containsFilteredWords(&p.Message) {
+			ps = append(ps, p)
+		}
 	}
 
 	js, err := json.Marshal(ps)
@@ -174,11 +178,37 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "Post received: %s\n", p.Message)
+	//fmt.Fprintf(w, "Post received: %s\n", p.Message)
 
 	id := uuid.New()
-	// Save to ES.
-	saveToES(&p, id)
+	//// Save to ES.
+	//saveToES(&p, id)
+
+	ctx := context.Background()
+	// you must update project name here
+	bt_client, err := bigtable.NewClient(ctx, PROJECT_ID, BT_INSTANCE)
+	if err != nil {
+		panic(err)
+		return
+	}
+
+	// TODO (student questions) save Post into BT as well
+	tbl := bt_client.Open("post")
+	mut := bigtable.NewMutation()
+	t := bigtable.Now()
+
+	mut.Set("post", "user", t, []byte(p.User))
+	mut.Set("post", "message", t, []byte(p.Message))
+	mut.Set("location", "lat", t, []byte(strconv.FormatFloat(p.Location.Lat, 'f', -1, 64)))
+	mut.Set("location", "lon", t, []byte(strconv.FormatFloat(p.Location.Lon, 'f', -1, 64)))
+
+	err = tbl.Apply(ctx, id, mut)
+	if err != nil {
+		panic(err)
+		return
+	}
+	fmt.Printf("Post is saved to BigTable: %s\n", p.Message)
+
 }
 
 // Save a post to ElasticSearch
@@ -203,4 +233,18 @@ func saveToES(p *Post, id string) {
 	}
 
 	fmt.Printf("Post is saved to Index: %s\n", p.Message)
+}
+
+// filter spam words
+func containsFilteredWords(s *string) bool {
+	filteredWords := []string{
+		"fuck",
+		"100",
+	}
+	for _, word := range filteredWords {
+		if strings.Contains(*s, word) {
+			return true
+		}
+	}
+	return false
 }
