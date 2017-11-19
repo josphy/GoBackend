@@ -145,26 +145,6 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Write(js)
-
-
-	//// Return a fake post
-	//p := &Post{
-	//	User:"1111",
-	//	Message:"一生必去的100个地方",
-	//	Location: Location{
-	//		Lat:lat,
-	//		Lon:lon,
-	//	},
-	//}
-	//
-	//js, err := json.Marshal(p)
-	//if err != nil {
-	//	panic(err)
-	//	return
-	//}
-	//
-	//w.Header().Set("Content-Type", "application/json")
-	//w.Write(js)
 }
 
 
@@ -181,8 +161,8 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	//fmt.Fprintf(w, "Post received: %s\n", p.Message)
 
 	id := uuid.New()
-	//// Save to ES.
-	//saveToES(&p, id)
+	// Save to ES.
+	saveToES(&p, id)
 
 	ctx := context.Background()
 	// you must update project name here
